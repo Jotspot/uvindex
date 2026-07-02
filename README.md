@@ -25,7 +25,7 @@ then visit `localhost:8000`.
 
 ## Where the data comes from
 
-UV forecasts are from [Open-Meteo](https://open-meteo.com/) — free, no API key. City search uses their geocoding API too, and "use my location" reverse-geocodes through [BigDataCloud](https://www.bigdatacloud.com/), also free and keyless.
+UV numbers come from [currentuvindex.com](https://currentuvindex.com/) — free, no API key. Open-Meteo fills in the timezone name and today's real sunrise/sunset (currentuvindex.com doesn't provide either), and its geocoding API powers city search. "Use my location" reverse-geocodes through [BigDataCloud](https://www.bigdatacloud.com/). All free, all keyless.
 
 ## Deploying
 

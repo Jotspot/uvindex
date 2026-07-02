@@ -1,7 +1,11 @@
-// UV Index — live data via Open-Meteo (free, no API key, CORS-enabled for
-// browser fetches). Reverse geocoding for "use my location" via BigDataCloud's
-// keyless client-side endpoint.
+// UV Index — live data via currentuvindex.com (free, no API key, CORS-open).
+// Open-Meteo is still used, but only for timezone name + sunrise/sunset —
+// currentuvindex.com doesn't return those, and accurate local-time handling
+// depends on the real IANA timezone name, not just lat/lon. Geocoding and
+// "use my location" reverse geocoding also go through Open-Meteo /
+// BigDataCloud respectively, both free and keyless.
 
+const UV_INDEX_URL = "https://currentuvindex.com/api/v1/uvi";
 const FORECAST_URL = "https://api.open-meteo.com/v1/forecast";
 const GEOCODE_URL = "https://geocoding-api.open-meteo.com/v1/search";
 const REVERSE_GEOCODE_URL = "https://api.bigdatacloud.net/data/reverse-geocode-client";
@@ -104,11 +108,11 @@ function formatHourLabel(hour) {
   return `${displayHour} ${period}`;
 }
 
-// Open-Meteo hourly `time` strings (e.g. "2026-07-01T14:00") are already in
-// the target location's local time, so we compare against a same-shaped key
-// for "now" in that timezone rather than parsing them as Dates (which would
-// be interpreted in the *browser's* local time and drift across timezones).
-function nowKeyForTimezone(timeZone) {
+// Converts any Date into a local-naive "YYYY-MM-DDTHH:00" key for the given
+// IANA timezone, so hourly buckets can be compared as plain strings instead
+// of parsed as Dates (which would be interpreted in the *browser's* local
+// time and drift across timezones).
+function localHourKey(date, timeZone) {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone,
     year: "numeric",
@@ -116,10 +120,14 @@ function nowKeyForTimezone(timeZone) {
     day: "2-digit",
     hour: "2-digit",
     hour12: false,
-  }).formatToParts(new Date());
+  }).formatToParts(date);
   const get = (type) => parts.find((p) => p.type === type)?.value ?? "00";
   const hour = get("hour") === "24" ? "00" : get("hour");
   return `${get("year")}-${get("month")}-${get("day")}T${hour}:00`;
+}
+
+function nowKeyForTimezone(timeZone) {
+  return localHourKey(new Date(), timeZone);
 }
 
 // Smooth curve through arbitrary points via Catmull-Rom -> cubic Bezier.
@@ -202,28 +210,64 @@ async function fetchWithTimeout(url, timeoutMs = 8000) {
   }
 }
 
-async function fetchUVForecast(lat, lon) {
-  const url = `${FORECAST_URL}?latitude=${lat}&longitude=${lon}&hourly=uv_index&daily=sunrise,sunset&timezone=auto&forecast_days=1`;
+// Timezone name + today's real sunrise/sunset. currentuvindex.com doesn't
+// provide either, and both are needed for correct local-hour matching and
+// the chart's daylight-window trimming.
+async function fetchTimezoneInfo(lat, lon) {
+  const url = `${FORECAST_URL}?latitude=${lat}&longitude=${lon}&daily=sunrise,sunset&timezone=auto&forecast_days=1`;
+  const res = await fetchWithTimeout(url);
+  if (!res.ok) throw new Error("Timezone lookup failed");
+  const data = await res.json();
+  return {
+    timezone: data.timezone,
+    sunrise: data.daily?.sunrise?.[0],
+    sunset: data.daily?.sunset?.[0],
+  };
+}
+
+// Real-time + forecast + recent-history UV values, keyed by UTC timestamp.
+async function fetchCurrentUVIndex(lat, lon) {
+  const url = `${UV_INDEX_URL}?latitude=${lat}&longitude=${lon}`;
   let lastErr;
-  // One retry: the forecast endpoint has been observed to intermittently
-  // stall on the first attempt but succeed immediately after.
+  // One retry: API calls from the browser have occasionally been observed
+  // to stall on the first attempt but succeed immediately after.
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
       const res = await fetchWithTimeout(url);
-      if (!res.ok) throw new Error("UV forecast request failed");
+      if (!res.ok) throw new Error("UV index request failed");
       const data = await res.json();
-      return {
-        timezone: data.timezone,
-        times: data.hourly.time,
-        uvValues: data.hourly.uv_index,
-        sunrise: data.daily?.sunrise?.[0],
-        sunset: data.daily?.sunset?.[0],
-      };
+      if (!data.ok) throw new Error("UV index request failed");
+      return [...data.history, data.now, ...data.forecast];
     } catch (err) {
       lastErr = err;
     }
   }
   throw lastErr;
+}
+
+async function fetchUVForecast(lat, lon) {
+  const [{ timezone, sunrise, sunset }, uvPoints] = await Promise.all([
+    fetchTimezoneInfo(lat, lon),
+    fetchCurrentUVIndex(lat, lon),
+  ]);
+
+  // Convert each point's UTC timestamp into a local-naive hour key for this
+  // location, then keep only today's (local calendar date) 24 hours, filling
+  // any gap hours with 0 — mirrors the shape the rest of the app expects
+  // from the old Open-Meteo hourly array.
+  const todayDate = nowKeyForTimezone(timezone).slice(0, 10);
+  const uvByHour = new Map(
+    uvPoints.map((p) => [localHourKey(new Date(p.time), timezone), p.uvi])
+  );
+  const times = [];
+  const uvValues = [];
+  for (let h = 0; h < 24; h++) {
+    const key = `${todayDate}T${String(h).padStart(2, "0")}:00`;
+    times.push(key);
+    uvValues.push(uvByHour.get(key) ?? 0);
+  }
+
+  return { timezone, times, uvValues, sunrise, sunset };
 }
 
 function getBrowserLocation(timeoutMs = 6000) {

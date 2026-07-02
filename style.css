@@ -222,9 +222,11 @@ body::-webkit-scrollbar {
 /* ---------- Big number + label ---------- */
 .uv-headline {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: center;
   gap: 14px;
+  row-gap: 2px;
   margin: 4px 0;
 }
 
@@ -243,9 +245,10 @@ body::-webkit-scrollbar {
 }
 
 .uv-category {
-  font-size: 40px;
+  font-size: 34px;
   font-weight: 700;
   letter-spacing: 0.5px;
+  white-space: nowrap;
 }
 
 /* ---------- Subtext ---------- */

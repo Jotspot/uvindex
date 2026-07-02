@@ -742,6 +742,26 @@ if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
     navigator.serviceWorker
       .register("sw.js")
+      .then((registration) => {
+        // The cache-first strategy means a plain refresh alone never picks
+        // up a newer app version — the browser also only checks for a new
+        // sw.js in the background occasionally. Force that check whenever
+        // the app is brought back to the foreground instead, so an update
+        // can't sit unnoticed indefinitely.
+        document.addEventListener("visibilitychange", () => {
+          if (!document.hidden) registration.update();
+        });
+      })
       .catch((err) => console.error("Service worker registration failed", err));
+
+    // Once a new service worker activates, this page is still running the
+    // old JS already loaded in memory — a controllerchange means an update
+    // just took over, so reload once to actually pick it up.
+    let hasReloaded = false;
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (hasReloaded) return;
+      hasReloaded = true;
+      window.location.reload();
+    });
   });
 }

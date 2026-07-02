@@ -1,7 +1,7 @@
 // Minimal hand-written service worker: cache the app shell on install,
 // serve from cache first and fall back to the network when offline.
 
-const CACHE_NAME = "uv-index-v7";
+const CACHE_NAME = "uv-index-v8";
 const APP_SHELL = [
   ".",
   "index.html",

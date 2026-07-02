@@ -21,6 +21,46 @@ const UV_CATEGORIES = [
 // Chart coordinate space (matches the SVG viewBox 320x170).
 const CHART = { xStart: 20, xEnd: 300, yTop: 45, yBottom: 150 };
 
+// WHO/EPA UV Index color scale (same green/yellow/orange/red/purple bands
+// as UV_CATEGORIES above), used to color the chart curve by the *actual*
+// UV value at each point rather than a decorative fixed rainbow — so the
+// peak reads orange/red/purple based on real severity, not curve position.
+const UV_COLOR_STOPS = [
+  { uv: 0, rgb: [46, 204, 64] }, // #2ecc40 green — Low
+  { uv: 3, rgb: [242, 194, 24] }, // #f2c218 yellow — Moderate
+  { uv: 6, rgb: [243, 156, 18] }, // #f39c12 orange — High
+  { uv: 8, rgb: [232, 67, 58] }, // #e8433a red — Very High
+  { uv: 11, rgb: [155, 48, 217] }, // #9b30d9 purple — Extreme
+];
+
+function uvToRGB(uv) {
+  const maxStop = UV_COLOR_STOPS[UV_COLOR_STOPS.length - 1];
+  const v = Math.max(0, Math.min(uv, maxStop.uv));
+  for (let i = 0; i < UV_COLOR_STOPS.length - 1; i++) {
+    const a = UV_COLOR_STOPS[i];
+    const b = UV_COLOR_STOPS[i + 1];
+    if (v >= a.uv && v <= b.uv) {
+      const t = (v - a.uv) / (b.uv - a.uv);
+      return a.rgb.map((c, idx) => Math.round(c + (b.rgb[idx] - c) * t));
+    }
+  }
+  return maxStop.rgb;
+}
+
+function rgbToHex(rgb) {
+  return `#${rgb.map((c) => c.toString(16).padStart(2, "0")).join("")}`;
+}
+
+function uvToColor(uv) {
+  return rgbToHex(uvToRGB(uv));
+}
+
+// Darkened version for the not-yet-reached (future) part of the curve —
+// same hue as the real value, just dimmed, instead of an unrelated palette.
+function uvToDarkColor(uv) {
+  return rgbToHex(uvToRGB(uv).map((c) => Math.round(c * 0.32)));
+}
+
 // ---------- Install banner ----------
 const INSTALL_DISMISS_KEY = "uvindex-install-dismissed";
 let deferredInstallPrompt = null;
@@ -252,6 +292,11 @@ function renderScale(currentUV) {
   scale.style.setProperty("--uv-progress", `${pct}%`);
 }
 
+function renderPeak(peakUV) {
+  const el = document.getElementById("card-peak");
+  if (el) el.textContent = `Peak ${Math.round(peakUV)}`;
+}
+
 function renderSubtext({ currentUV, times, uvValues, currentIndex, peakUV, peakIndex }) {
   if (currentUV >= 3) {
     let lastHighIdx = currentIndex;
@@ -269,6 +314,19 @@ function renderSubtext({ currentUV, times, uvValues, currentIndex, peakUV, peakI
   }
 }
 
+// Builds the <stop> list for a gradient spanning [x1, x2], with each point's
+// color computed from its *actual* UV value (via colorFn) rather than a
+// fixed decorative position — so the curve's color always matches reality.
+function buildGradientStops(pts, x1, x2, colorFn) {
+  const span = x2 - x1 || 1;
+  return pts
+    .map(([x, , uv]) => {
+      const offset = Math.max(0, Math.min(1, (x - x1) / span));
+      return `<stop offset="${offset.toFixed(4)}" stop-color="${colorFn(uv)}" />`;
+    })
+    .join("\n");
+}
+
 function renderChart({ times, uvValues, currentIndex }) {
   const [start, end] = computeDaylightWindow(uvValues);
   const windowIdx = [];
@@ -278,6 +336,7 @@ function renderChart({ times, uvValues, currentIndex }) {
   const points = windowIdx.map((i) => [
     CHART.xStart + ((i - start) / (end - start || 1)) * (CHART.xEnd - CHART.xStart),
     CHART.yBottom - (uvValues[i] / maxVal) * (CHART.yBottom - CHART.yTop),
+    uvValues[i],
   ]);
 
   let nowPos = windowIdx.indexOf(currentIndex);
@@ -291,25 +350,23 @@ function renderChart({ times, uvValues, currentIndex }) {
   const firstX = points[0][0];
   const lastX = points[points.length - 1][0];
 
+  const brightStops = buildGradientStops(
+    brightPoints.length ? brightPoints : [points[0]],
+    firstX,
+    dot[0],
+    uvToColor
+  );
+  const darkStops = darkPoints.length > 1 ? buildGradientStops(darkPoints, dot[0], lastX, uvToDarkColor) : "";
+
   const svg = document.getElementById("uv-chart");
   if (svg) {
     svg.innerHTML = `
       <defs>
-        <linearGradient id="curveGradientBright" gradientUnits="userSpaceOnUse" x1="${firstX}" y1="0" x2="${lastX}" y2="0">
-          <stop offset="0" stop-color="#2ecc40" />
-          <stop offset="0.18" stop-color="#7ed13a" />
-          <stop offset="0.30" stop-color="#f2c218" />
-          <stop offset="0.38" stop-color="#f39c12" />
-          <stop offset="0.44" stop-color="#e84c8a" />
-          <stop offset="0.47" stop-color="#d94fd0" />
-          <stop offset="0.54" stop-color="#e84c8a" />
-          <stop offset="0.62" stop-color="#f39c12" />
-          <stop offset="1" stop-color="#f39c12" />
+        <linearGradient id="curveGradientBright" gradientUnits="userSpaceOnUse" x1="${firstX}" y1="0" x2="${dot[0]}" y2="0">
+          ${brightStops}
         </linearGradient>
         <linearGradient id="curveGradientDark" gradientUnits="userSpaceOnUse" x1="${dot[0]}" y1="0" x2="${lastX}" y2="0">
-          <stop offset="0" stop-color="#5c3414" />
-          <stop offset="0.4" stop-color="#4a4212" />
-          <stop offset="1" stop-color="#15321c" />
+          ${darkStops}
         </linearGradient>
       </defs>
       <path class="uv-curve" d="${brightPath}" fill="none" stroke="url(#curveGradientBright)"
@@ -363,12 +420,13 @@ async function loadLocation(location) {
     renderHeadline(currentUV, categorize(currentUV));
     renderBurn(currentUV);
     renderScale(currentUV);
+    renderPeak(peakUV);
     renderSubtext({ currentUV, times, uvValues, currentIndex, peakUV, peakIndex });
     renderChart({ times, uvValues, currentIndex });
     setLocationLabel(location.label);
   } catch (err) {
     console.error("Failed to load UV data", err);
-    setSubtextMessage("Couldn't load UV data. Check your connection");
+    setSubtextMessage(navigator.onLine ? "Couldn't load UV data. Check your connection" : "No internet connection");
   } finally {
     isLoadingLocation = false;
   }
@@ -620,11 +678,24 @@ function initAutoRefresh() {
   });
 }
 
+function initConnectivityHandling() {
+  window.addEventListener("offline", () => {
+    setSubtextMessage("No internet connection");
+  });
+  window.addEventListener("online", () => {
+    if (currentLocation && !isLoadingLocation) {
+      setSubtextMessage("Loading UV data…");
+      loadLocation(currentLocation);
+    }
+  });
+}
+
 async function init() {
   initSearchForm();
   initLocateButton();
   initInstallBanner();
   initAutoRefresh();
+  initConnectivityHandling();
 
   setSubtextMessage("Loading UV data…");
   let location = DEFAULT_LOCATION;

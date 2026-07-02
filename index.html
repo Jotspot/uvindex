@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#0a0a0a" />
 
   <!-- Scalable SVG favicon (modern browsers). iOS/Safari home-screen icons
@@ -75,9 +75,11 @@
     <p class="uv-subtext" id="uv-subtext">Loading UV data…</p>
 
     <!-- Card 1: UVI Today -->
-    <section class="card card-relative">
-      <h2 class="card-label">UVI Today</h2>
-      <span class="card-peak" id="card-peak"></span>
+    <section class="card">
+      <div class="card-label-row">
+        <h2 class="card-label">UVI Today</h2>
+        <span class="card-label card-peak" id="card-peak" hidden></span>
+      </div>
       <!-- Chart is built entirely by app.js's renderChart() from real data. -->
       <svg class="uv-chart" id="uv-chart" viewBox="0 0 320 170" preserveAspectRatio="none" aria-hidden="true"></svg>
       <div class="chart-axis" id="chart-axis"></div>

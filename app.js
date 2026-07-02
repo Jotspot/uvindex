@@ -203,7 +203,7 @@ async function fetchWithTimeout(url, timeoutMs = 8000) {
 }
 
 async function fetchUVForecast(lat, lon) {
-  const url = `${FORECAST_URL}?latitude=${lat}&longitude=${lon}&hourly=uv_index&timezone=auto&forecast_days=1`;
+  const url = `${FORECAST_URL}?latitude=${lat}&longitude=${lon}&hourly=uv_index&daily=sunrise,sunset&timezone=auto&forecast_days=1`;
   let lastErr;
   // One retry: the forecast endpoint has been observed to intermittently
   // stall on the first attempt but succeed immediately after.
@@ -212,7 +212,13 @@ async function fetchUVForecast(lat, lon) {
       const res = await fetchWithTimeout(url);
       if (!res.ok) throw new Error("UV forecast request failed");
       const data = await res.json();
-      return { timezone: data.timezone, times: data.hourly.time, uvValues: data.hourly.uv_index };
+      return {
+        timezone: data.timezone,
+        times: data.hourly.time,
+        uvValues: data.hourly.uv_index,
+        sunrise: data.daily?.sunrise?.[0],
+        sunset: data.daily?.sunset?.[0],
+      };
     } catch (err) {
       lastErr = err;
     }
@@ -252,8 +258,27 @@ function describeLocationError(err) {
 }
 
 // Trims the 24h array down to roughly sunrise-to-sunset, with a 1h pad, so
-// the chart isn't mostly flat at zero.
-function computeDaylightWindow(uvValues) {
+// the chart isn't mostly flat at zero. Falls back to a UV-threshold guess
+// if real sunrise/sunset times aren't available for some reason.
+function computeDaylightWindow(uvValues, times, sunrise, sunset) {
+  if (sunrise && sunset) {
+    const sunriseHour = parseInt(sunrise.slice(11, 13), 10);
+    const sunsetHour = parseInt(sunset.slice(11, 13), 10);
+    const first = times.findIndex((t) => parseInt(t.slice(11, 13), 10) >= sunriseHour);
+    let last = -1;
+    for (let i = times.length - 1; i >= 0; i--) {
+      if (parseInt(times[i].slice(11, 13), 10) <= sunsetHour) {
+        last = i;
+        break;
+      }
+    }
+    if (first !== -1 && last !== -1 && last > first) {
+      return [Math.max(0, first - 1), Math.min(times.length - 1, last + 1)];
+    }
+  }
+
+  // No usable sunrise/sunset (e.g. polar day/night) — guess from the UV
+  // curve itself instead.
   const hasLight = uvValues.some((v) => v > 0.3);
   if (!hasLight) return [6, 18];
   let first = uvValues.findIndex((v) => v > 0.3);
@@ -294,7 +319,9 @@ function renderScale(currentUV) {
 
 function renderPeak(peakUV) {
   const el = document.getElementById("card-peak");
-  if (el) el.textContent = `Peak ${Math.round(peakUV)}`;
+  if (!el) return;
+  el.textContent = `Peak ${Math.round(peakUV)}`;
+  el.hidden = false;
 }
 
 function renderSubtext({ currentUV, times, uvValues, currentIndex, peakUV, peakIndex }) {
@@ -327,8 +354,8 @@ function buildGradientStops(pts, x1, x2, colorFn) {
     .join("\n");
 }
 
-function renderChart({ times, uvValues, currentIndex }) {
-  const [start, end] = computeDaylightWindow(uvValues);
+function renderChart({ times, uvValues, currentIndex, sunrise, sunset }) {
+  const [start, end] = computeDaylightWindow(uvValues, times, sunrise, sunset);
   const windowIdx = [];
   for (let i = start; i <= end; i++) windowIdx.push(i);
 
@@ -402,7 +429,7 @@ async function loadLocation(location) {
   lastLoadedAt = Date.now();
   isLoadingLocation = true;
   try {
-    const { timezone, times, uvValues } = await fetchUVForecast(location.lat, location.lon);
+    const { timezone, times, uvValues, sunrise, sunset } = await fetchUVForecast(location.lat, location.lon);
 
     const nowKey = nowKeyForTimezone(timezone);
     let currentIndex = times.indexOf(nowKey);
@@ -422,7 +449,7 @@ async function loadLocation(location) {
     renderScale(currentUV);
     renderPeak(peakUV);
     renderSubtext({ currentUV, times, uvValues, currentIndex, peakUV, peakIndex });
-    renderChart({ times, uvValues, currentIndex });
+    renderChart({ times, uvValues, currentIndex, sunrise, sunset });
     setLocationLabel(location.label);
   } catch (err) {
     console.error("Failed to load UV data", err);

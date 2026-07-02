@@ -26,6 +26,16 @@ body {
     "SF Pro Text", "SF Pro Display", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  overscroll-behavior: none;
+  /* Scrolling still works if content ever overflows a short viewport —
+     just without a visible scrollbar, for a more native-app feel. */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+html::-webkit-scrollbar,
+body::-webkit-scrollbar {
+  display: none;
 }
 
 .screen {
@@ -258,20 +268,24 @@ body {
   color: var(--text-muted);
   font-size: 14px;
   font-weight: 500;
+  margin: 0;
+}
+
+.card-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   margin: 0 0 8px;
 }
 
-.card-relative {
-  position: relative;
+.card-peak::before {
+  content: "·";
+  margin-right: 8px;
 }
 
-.card-peak {
-  position: absolute;
-  top: 22px;
-  right: 24px;
-  font-size: 12.5px;
-  font-weight: 600;
-  color: var(--text-muted);
+.card-peak[hidden] {
+  display: none;
 }
 
 /* ---------- Chart ---------- */

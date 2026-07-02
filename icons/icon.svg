@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400">
+  <rect width="400" height="400" fill="#0a0a0a" />
+  <defs>
+    <!-- Same color stops used by the UV scale bar / chart curve gradients. -->
+    <linearGradient id="pillGradient" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0"    stop-color="#d94fd0" />
+      <stop offset="0.15" stop-color="#e84c8a" />
+      <stop offset="0.35" stop-color="#f39c12" />
+      <stop offset="0.55" stop-color="#f2c218" />
+      <stop offset="0.78" stop-color="#7ed13a" />
+      <stop offset="1"    stop-color="#2ecc40" />
+    </linearGradient>
+  </defs>
+  <rect x="115" y="55" width="170" height="290" rx="85" fill="url(#pillGradient)" />
+</svg>

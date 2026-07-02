@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0a0a0a" />
+
+  <!-- Scalable SVG favicon (modern browsers). iOS/Safari home-screen icons
+       still require PNG, so apple-touch-icon below is a PNG rendered from
+       the same icons/icon.svg source. -->
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml" />
+
+  <!-- iOS home-screen / standalone behavior -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="UVI" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+
+  <link rel="manifest" href="manifest.json" />
+  <link rel="stylesheet" href="style.css" />
+  <title>UV Index</title>
+</head>
+<body>
+  <main class="screen">
+    <!-- Search bar -->
+    <div class="search-wrap">
+      <form class="search-bar" role="search" id="search-form" autocomplete="off">
+        <svg class="icon search-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2" />
+          <line x1="16.5" y1="16.5" x2="21" y2="21" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+        </svg>
+        <input
+          class="search-text"
+          id="location-input"
+          type="text"
+          inputmode="search"
+          autocomplete="off"
+          placeholder="Search city"
+          aria-label="Search location"
+          role="combobox"
+          aria-expanded="false"
+          aria-controls="location-suggestions"
+          aria-autocomplete="list"
+        />
+        <button type="button" class="icon-btn" id="locate-btn" aria-label="Use current location">
+          <svg class="icon locate-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="12" cy="12" r="3" fill="currentColor" />
+            <circle cx="12" cy="12" r="7" fill="none" stroke="currentColor" stroke-width="2" />
+            <line x1="12" y1="1.5" x2="12" y2="5" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+            <line x1="12" y1="19" x2="12" y2="22.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+            <line x1="1.5" y1="12" x2="5" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+            <line x1="19" y1="12" x2="22.5" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+          </svg>
+        </button>
+      </form>
+      <ul class="suggestions" id="location-suggestions" role="listbox" hidden></ul>
+    </div>
+
+    <!-- UV gradient scale bar -->
+    <div class="uv-scale" aria-hidden="true">
+      <div class="uv-scale-fill">
+        <div class="uv-scale-fill-gradient"></div>
+      </div>
+    </div>
+
+    <!-- Big number + label. Populated by app.js once real data loads —
+         intentionally blank here so no placeholder value is ever shown. -->
+    <div class="uv-headline">
+      <span class="uv-number" id="uv-number"></span>
+      <span class="uv-dot">•</span>
+      <span class="uv-category" id="uv-category"></span>
+    </div>
+
+    <!-- Subtext -->
+    <p class="uv-subtext" id="uv-subtext">Loading UV data…</p>
+
+    <!-- Card 1: UVI Today -->
+    <section class="card">
+      <h2 class="card-label">UVI Today</h2>
+      <!-- Chart is built entirely by app.js's renderChart() from real data. -->
+      <svg class="uv-chart" id="uv-chart" viewBox="0 0 320 170" preserveAspectRatio="none" aria-hidden="true"></svg>
+      <div class="chart-axis" id="chart-axis"></div>
+    </section>
+
+    <!-- Card 2: Time to burn -->
+    <section class="card card-center">
+      <h2 class="card-label">Time to burn</h2>
+      <p class="burn-value" id="burn-value"></p>
+    </section>
+  </main>
+
+  <!-- Install prompt: shown on mobile browsers when not already installed
+       as a PWA (see initInstallBanner() in app.js). -->
+  <div class="install-banner" id="install-banner" hidden>
+    <img src="icons/icon.svg" alt="" class="install-banner-icon" />
+    <div class="install-banner-text">
+      <p class="install-banner-title">Install UV Index</p>
+      <p class="install-banner-subtitle" id="install-banner-subtitle">Add to your home screen for quick access</p>
+    </div>
+    <button type="button" class="install-banner-action" id="install-action" hidden>Install</button>
+    <button type="button" class="install-banner-close" id="install-close" aria-label="Dismiss">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <line x1="6" y1="6" x2="18" y2="18" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+        <line x1="18" y1="6" x2="6" y2="18" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+      </svg>
+    </button>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
